@@ -83,9 +83,25 @@ def eval_mario(ind,visualize):
         feature_value=get_feature(ind,result)
         ind.features.append(feature_value)
     ind.features=tuple(ind.features)
-    completion_percentage=float(statsList[0])
+    
 
-    return completion_percentage
+    #新增：定义通关成功与否
+    completion_percentage=float(statsList[0]) * 100
+    print(f"Completion Percentage: {completion_percentage:.2f}%")
+
+    #新增：如果通关成功，则给予额外奖励
+    is_pass = abs(completion_percentage - 100.0) < 1.0
+    completion_percentage += 10 * is_pass
+    #########################################
+
+    #新增：打印每轮是否通关
+    if is_pass:
+        print("PASS")
+    else:
+        print("FAIL TO PASS")
+    #########################
+
+    return completion_percentage, is_pass
 
 evaluate = eval_mario
 
@@ -95,6 +111,9 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
     feature_ranges=[]
     column_names=['emitterName','latentVector', 'completionPercentage','jumpActionsPerformed','killsTotal','livesLeft','coinsCollected','remainingTime (20-timeSpent)']
     bc_names=[]
+    #新增：通关统计
+    pass_count = 0
+    ##############
     for bc in elite_map_config["Map"]["Features"]:
         feature_ranges.append((bc["low"],bc["high"]))
         column_names.append(bc["name"])
@@ -136,19 +155,27 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
         print("Start Running RANDOM")
         algorithm_instance=RandomGenerator(num_to_evaluate,feature_map,trial_name,column_names,bc_names)
     
+    #新增：通关统计
     simulation=1
     while algorithm_instance.is_running():
         ind = algorithm_instance.generate_individual()
 
         ind.level=gan_generate(ind.param_vector,batch_size,nz,model_path)
-        ind.fitness = evaluate(ind,visualize)
+
+
+        ind.fitness, is_pass = evaluate(ind, visualize)
+
+        if is_pass:
+            pass_count += 1
 
         algorithm_instance.return_evaluated_individual(ind)
-
-        print(str(simulation)+"/"+str(num_to_evaluate)+" simulations finished")
-        simulation=simulation+1
+        print(f"{simulation}/{num_to_evaluate} simulations finished")
+        simulation += 1
 
     algorithm_instance.all_records.to_csv("logs/"+trial_name+"_all_simulations.csv")
+
+    print(f"\nSummary: {pass_count} passed / {num_to_evaluate} total ({(pass_count / num_to_evaluate) * 100:.2f}%)")
+    ################################################################################################################
 
 """
 if __name__ == '__main__':
