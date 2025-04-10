@@ -20,7 +20,9 @@ else:
     for i in experiment_toml["Trials"]:
         num_list.append(i["num_trials"])
     for trial_index in range(len(num_list)):
+        print(f"Checking trial {trial_index}, workerID: {workerID}, num_trials: {num_list[trial_index]}")
         if workerID<num_list[trial_index]:
+            print(f"Starting search: workerID={workerID+1}, trial_index={trial_index}")
             start_search(workerID+1,trial_index,experiment_toml,model_path,visualize)
             print("workerID "+str(opt.workerID)+" finished")
             break
