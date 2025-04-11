@@ -91,7 +91,7 @@ def eval_mario(ind,visualize):
 
     #新增：如果通关成功，则给予额外奖励
     is_pass = abs(completion_percentage - 100.0) < 1.0
-    completion_percentage += 10 * is_pass
+    completion_percentage = 10 * is_pass
     #########################################
 
     #新增：打印每轮是否通关
@@ -162,7 +162,7 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
 
         ind.level=gan_generate(ind.param_vector,batch_size,nz,model_path)
 
-
+        #新增：通关奖励，将Completion Percentage赋值给fitness，is_pass赋值给is_pass#
         ind.fitness, is_pass = evaluate(ind, visualize)
 
         if is_pass:
