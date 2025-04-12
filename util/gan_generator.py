@@ -26,6 +26,12 @@ def gan_generate(x,batchSize,nz,model_path):
     levels.data = levels.data[:, :, :16, :56]
     im = levels.data.cpu().numpy()
     im = numpy.argmax( im, axis = 1)
+    #ÐÞ¸´ START_NO_GROUND
+    """
+    if numpy.all(im[0][-2:, 0:3] == 0):
+        im[0][-1][1] = 1
+        print("AutoFix START_NO_GROUND")
+    """
     #from IPython import embed
     #embed()
     return json.dumps(im[0].tolist())

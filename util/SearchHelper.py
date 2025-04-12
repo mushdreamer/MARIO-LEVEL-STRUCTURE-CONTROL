@@ -26,71 +26,68 @@ def make_record_frame(points):
     d = {'x':x, 'y':y, 'f':f}
     return pd.DataFrame(d)
 
-def is_structure_valid(number_level):
-    array = np.array(eval(number_level))  # 16x56 整数数组
+def detect_structure_failure(level, statsList, is_pass):
+    array = np.array(eval(level))
     h, w = array.shape
 
     MAX_JUMP_HEIGHT = 4
     MAX_JUMP_WIDTH = 5
 
-    # 起点检测：列 0-2 至少要有落脚点
-    start_col = array[:, 0:3]
-    if np.all(start_col == 0):
-        print("Invalid: Start area has no ground")
-        return False
+    # 1. WALL_TOO_HIGH（时间走完 + 未通关 → 代表被卡住）
+    if not is_pass and int(statsList[5]) == 0:
+        return False, "WALL_TOO_HIGH"
 
-    # 遍历每一列，检查墙高
+    # 2. START_NO_GROUND
+    start_ground = array[-2:, 0:3]
+    if np.all(start_ground == 0):
+        return False, "START_NO_GROUND"
+
+    # 3. GAP_TOO_WIDE（模拟跳跃中掉下）
+    if not is_pass:
+        for col in range(3, w - 1):
+            player_y = next((row for row in range(h) if array[row][col] != 0), h)
+            for jump_height in range(1, MAX_JUMP_HEIGHT + 1):
+                landing_y = player_y - jump_height
+                if landing_y < 0:
+                    break
+                if np.all(array[landing_y:, col + 1] == 0):
+                    return False, "GAP_TOO_WIDE"
+
+    return True, None
+
+def compute_structure_score(number_level):
+    score = 1.0
+    array = np.array(eval(number_level))
+    h, w = array.shape
+
+    MAX_JUMP_HEIGHT = 4
+    MAX_JUMP_WIDTH = 5
+
+    # 1. Start ground check
+    start_ground = array[-2:, 0:3]
+    if np.all(start_ground == 0):
+        score -= 0.3
+
+    # 2. Wall height penalty
     for col in range(w):
         column = array[:, col]
         top = next((i for i, v in enumerate(column) if v != 0), h)
         wall_height = h - top
-        if wall_height > MAX_JUMP_HEIGHT + 4:  # 冗余容差
-            print(f"Invalid: Wall too high at column {col}, height: {wall_height}")
-            return False
+        if wall_height > MAX_JUMP_HEIGHT + 4:
+            score -= 0.1
 
-    # 检查平台跨度：如果有连续 0 超过 6 则为无解 gap
-    for row in range(h - 1, -1, -1):
+    # 3. Gap penalty on bottom 3 rows
+    for row in range(h - 3, h):
         gap_length = 0
         for col in range(w):
             if array[row][col] == 0:
                 gap_length += 1
                 if gap_length > MAX_JUMP_WIDTH:
-                    print(f"Invalid: Gap too wide at row {row}, width: {gap_length}")
-                    return False
+                    score -= 0.2
+                    break
             else:
                 gap_length = 0
 
-    # 检查终点旗帜是否可达
-    flag_pos = np.where(array == 7)
-    if len(flag_pos[0]) == 0:
-        print("Invalid: No goal flag found.")
-        return False
-
-    # 你还可以加其他判定（如敌人密度）
-
-    return True
-
-def compute_structure_score(number_level):
-    score = 1.0
-    array = np.array(eval(number_level))
-
-    # 起点安全性
-    if np.all(array[:, 0:3] == 0):
-        score -= 0.3
-
-    # 检查墙高分布
-    for col in range(array.shape[1]):
-        column = array[:, col]
-        top = next((i for i, v in enumerate(column) if v != 0), 16)
-        wall_height = 16 - top
-        if wall_height > 10:
-            score -= 0.1
-
-    # 检查是否存在终点
-    if not np.any(array == 7):
-        score -= 0.3
-
-    # 限制 score 在 [0, 1]
     score = max(0.0, min(1.0, score))
     return score
 
@@ -156,6 +153,10 @@ class FeatureMap:
 
    def add_to_map(self, to_add):
       index = self.get_index(to_add)
+      
+      #新增：结构错误地图直接拒绝加入地图（但 AI 会收到 fitness 惩罚）
+      if hasattr(to_add, "blocked") and to_add.blocked:
+         return False
 
       replaced_elite = False
       if index not in self.elite_map:

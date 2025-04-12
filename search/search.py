@@ -14,7 +14,7 @@ import pandas as pd
 os.environ['CLASSPATH']=os.path.join(str(pathlib.Path().absolute()),"Mario.jar")
 #os.environ['CLASSPATH'] = "/home/tehqin/Projects/MarioGAN-LSI/Mario.jar"
 
-from util.SearchHelper import is_structure_valid
+from util.SearchHelper import detect_structure_failure
 from util.SearchHelper import compute_structure_score
 
 
@@ -65,7 +65,6 @@ EliteMapConfig=[]
 
 import sys
 
-
 def eval_mario(ind,visualize):
     is_pass = False
     realLevel=to_level(ind.level)
@@ -110,11 +109,22 @@ def eval_mario(ind,visualize):
         print("PASS")
     else:
         print("FAIL TO PASS")
-        if not is_structure_valid(ind.level):
-            print("Warning: Skipping structurally invalid level")
-            ind.statsList = ['0'] * 6
-            ind.features = [0.0] * len(EliteMapConfig["Map"]["Features"])
-            return 0.0, is_pass
+
+    # 统一结构失败检测（静态 + 行为）
+    valid, failure_reason = detect_structure_failure(ind.level, statsList, is_pass)
+    if not valid:
+        print(f"Warning: Skipping structurally invalid level due to: {failure_reason}")
+        ind.failure_type = failure_reason
+        ind.blocked = True  #新增：设置阻止加入地图
+        penalty_map = {
+            "START_NO_GROUND": -10,
+            "GAP_TOO_WIDE": -5,
+            "WALL_TOO_HIGH": -3,
+        }
+        fitness += penalty_map.get(failure_reason, -2)  #结构失败惩罚信号
+        ind.statsList = ['0'] * 6
+        ind.features = [0.0] * len(EliteMapConfig["Map"]["Features"])
+        return fitness, is_pass
     #########################
 
     return fitness, is_pass
@@ -133,6 +143,13 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
     #新增：100次通关统计
     pass_rate_history = []
     ######################
+    # 新增：结构错误统计器
+    failure_counter = {
+        "START_NO_GROUND": 0,
+        "GAP_TOO_WIDE": 0,
+        "WALL_TOO_HIGH": 0
+        }
+    failure_history = []
     for bc in elite_map_config["Map"]["Features"]:
         feature_ranges.append((bc["low"],bc["high"]))
         column_names.append(bc["name"])
@@ -186,11 +203,26 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
         if is_pass:
             pass_count += 1
 
-        #新增：记录百次成功率
+        # 统计结构错误
+        if hasattr(ind, "failure_type") and ind.failure_type in failure_counter:
+            failure_counter[ind.failure_type] += 1
+
+        # 每 100 次记录一次
         if simulation % 100 == 0:
             pass_rate = pass_count / simulation * 100
             pass_rate_history.append((simulation, pass_rate))
             print(f"[Info] At simulation {simulation}: Pass rate = {pass_rate:.2f}%")
+
+            failure_history.append([
+                simulation,
+                failure_counter["START_NO_GROUND"],
+                failure_counter["GAP_TOO_WIDE"],
+                failure_counter["WALL_TOO_HIGH"]
+            ])
+            print(f"[Failure Count] @ {simulation}: {failure_counter}")
+
+            for k in failure_counter:
+                failure_counter[k] = 0
 
         algorithm_instance.return_evaluated_individual(ind)
         print(f"{simulation}/{num_to_evaluate} simulations finished")
@@ -205,6 +237,14 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
         writer.writerow(["Simulation", "Pass Rate (%)"])
         writer.writerows(pass_rate_history)
 
+    # 保存结构失败 CSV（不嵌套绘图！）
+    failure_csv_path = f"logs/{trial_name}_failure_stats.csv"
+    with open(failure_csv_path, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Simulation", "START_NO_GROUND", "GAP_TOO_WIDE", "WALL_TOO_HIGH"])
+        writer.writerows(failure_history)
+
+    #成功绘图
     try:
         df = pd.DataFrame(pass_rate_history, columns=["Simulation", "Pass Rate (%)"])
         plt.figure(figsize=(10,6))
@@ -217,9 +257,29 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
         plot_path = f"logs/{trial_name}_pass_rate_plot.png"
         plt.savefig(plot_path)
         print(f"Pass rate plot saved to: {plot_path}")
-        plt.show()
     except Exception as e:
         print("Failed to generate pass rate plot:", e)
+
+    #结构错误趋势图
+    try:
+        df_fail = pd.DataFrame(failure_history, columns=["Simulation", "START_NO_GROUND", "GAP_TOO_WIDE", "WALL_TOO_HIGH"])
+        plt.figure(figsize=(10,6))
+        plt.plot(df_fail["Simulation"], df_fail["START_NO_GROUND"], marker="o", label="START_NO_GROUND")
+        plt.plot(df_fail["Simulation"], df_fail["GAP_TOO_WIDE"], marker="s", label="GAP_TOO_WIDE")
+        plt.plot(df_fail["Simulation"], df_fail["WALL_TOO_HIGH"], marker="^", label="WALL_TOO_HIGH")
+        plt.xlabel("Simulation")
+        plt.ylabel("Failure Count (per 100)")
+        plt.title(f"Structure Failure Trends\n{trial_name}")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        failure_plot_path = f"logs/{trial_name}_failure_trend.png"
+        plt.savefig(failure_plot_path)
+        print(f"Failure trend plot saved to: {failure_plot_path}")
+    except Exception as e:
+        print("Failed to generate failure trend plot:", e)
+
+    plt.show()
 
     print(f"\nSummary: {pass_count} passed / {num_to_evaluate} total ({(pass_count / num_to_evaluate) * 100:.2f}%)")
     ################################################################################################################
