@@ -1,10 +1,15 @@
 import os
 import sys
+import csv
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 print(os.getcwd())
 sys.path.append(os.getcwd())
 from util import SearchHelper
 from util import bc_calculate
 import pathlib
+import matplotlib.pyplot as plt
+import pandas as pd
 #print('AAAAAH', str(pathlib.Path().absolute()))
 os.environ['CLASSPATH']=os.path.join(str(pathlib.Path().absolute()),"Mario.jar")
 #os.environ['CLASSPATH'] = "/home/tehqin/Projects/MarioGAN-LSI/Mario.jar"
@@ -114,6 +119,9 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
     #新增：通关统计
     pass_count = 0
     ##############
+    #新增：100次通关统计
+    pass_rate_history = []
+    ######################
     for bc in elite_map_config["Map"]["Features"]:
         feature_ranges.append((bc["low"],bc["high"]))
         column_names.append(bc["name"])
@@ -168,11 +176,39 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
         if is_pass:
             pass_count += 1
 
+        #新增：记录百次成功率
+        if simulation % 100 == 0:
+            pass_rate = pass_count / simulation * 100
+            pass_rate_history.append((simulation, pass_rate))
+            print(f"[Info] At simulation {simulation}: Pass rate = {pass_rate:.2f}%")
+
         algorithm_instance.return_evaluated_individual(ind)
         print(f"{simulation}/{num_to_evaluate} simulations finished")
         simulation += 1
 
     algorithm_instance.all_records.to_csv("logs/"+trial_name+"_all_simulations.csv")
+
+    csv_path = f"logs/{trial_name}_pass_rate.csv"
+    with open(csv_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Simulation", "Pass Rate (%)"])
+        writer.writerows(pass_rate_history)
+
+    try:
+        df = pd.DataFrame(pass_rate_history, columns=["Simulation", "Pass Rate (%)"])
+        plt.figure(figsize=(10,6))
+        plt.plot(df["Simulation"], df["Pass Rate (%)"], marker='o', color='royalblue')
+        plt.xlabel("Simulation")
+        plt.ylabel("Pass Rate (%)")
+        plt.title(f"Pass Rate Over Time\n{trial_name}")
+        plt.grid(True)
+        plt.tight_layout()
+        plot_path = f"logs/{trial_name}_pass_rate_plot.png"
+        plt.savefig(plot_path)
+        print(f"Pass rate plot saved to: {plot_path}")
+        plt.show()
+    except Exception as e:
+        print("Failed to generate pass rate plot:", e)
 
     print(f"\nSummary: {pass_count} passed / {num_to_evaluate} total ({(pass_count / num_to_evaluate) * 100:.2f}%)")
     ################################################################################################################

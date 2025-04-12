@@ -1,5 +1,5 @@
 algorithm = "MAPELITES"
 trial_name="MAPELITES_8Binary"
-num_simulations=10000
+num_simulations=100
 algorithm_config = "search/config/algorithms/map_elites.tml"
 elite_map_config = "search/config/elite_map/8Binary.tml"
