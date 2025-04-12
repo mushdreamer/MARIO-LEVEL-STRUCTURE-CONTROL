@@ -14,6 +14,9 @@ import pandas as pd
 os.environ['CLASSPATH']=os.path.join(str(pathlib.Path().absolute()),"Mario.jar")
 #os.environ['CLASSPATH'] = "/home/tehqin/Projects/MarioGAN-LSI/Mario.jar"
 
+from util.SearchHelper import is_structure_valid
+from util.SearchHelper import compute_structure_score
+
 
 import pandas as pd
 import numpy as np
@@ -64,6 +67,7 @@ import sys
 
 
 def eval_mario(ind,visualize):
+    is_pass = False
     realLevel=to_level(ind.level)
     JString = autoclass('java.lang.String')
     agent = Agent()
@@ -94,6 +98,10 @@ def eval_mario(ind,visualize):
     completion_percentage=float(statsList[0]) * 100
     print(f"Completion Percentage: {completion_percentage:.2f}%")
 
+
+    structure_score = compute_structure_score(ind.level)
+    fitness = completion_percentage + 10 * is_pass + 5 * structure_score
+
     #新增：如果通关成功，则给予额外奖励
     is_pass = abs(completion_percentage - 100.0) < 1.0
     completion_percentage = 10 * is_pass
@@ -104,9 +112,16 @@ def eval_mario(ind,visualize):
         print("PASS")
     else:
         print("FAIL TO PASS")
+
+    if not is_structure_valid(ind.level):
+        print("Warning: Skipping structurally invalid failed level")
+        ind.statsList = ['0'] * 6
+        ind.features = [0.0] * len(EliteMapConfig["Map"]["Features"])
+        is_pass = False  # 添加这句保证后续 return 不报错
+        return 0.0, is_pass
     #########################
 
-    return completion_percentage, is_pass
+    return fitness, is_pass
 
 evaluate = eval_mario
 
@@ -170,7 +185,7 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
 
         ind.level=gan_generate(ind.param_vector,batch_size,nz,model_path)
 
-        #新增：通关奖励，将Completion Percentage赋值给fitness，is_pass赋值给is_pass#
+        #新增：通关奖励，将fitness赋值给ind.fitness，is_pass赋值给is_pass#
         ind.fitness, is_pass = evaluate(ind, visualize)
 
         if is_pass:
@@ -188,6 +203,7 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
 
     algorithm_instance.all_records.to_csv("logs/"+trial_name+"_all_simulations.csv")
 
+    #新增：保存百次成功率并制图
     csv_path = f"logs/{trial_name}_pass_rate.csv"
     with open(csv_path, mode='w', newline='') as file:
         writer = csv.writer(file)
