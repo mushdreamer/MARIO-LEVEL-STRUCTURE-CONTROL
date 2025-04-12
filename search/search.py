@@ -92,18 +92,16 @@ def eval_mario(ind,visualize):
         feature_value=get_feature(ind,result)
         ind.features.append(feature_value)
     ind.features=tuple(ind.features)
-    
 
     #新增：定义通关成功与否
     completion_percentage=float(statsList[0]) * 100
     print(f"Completion Percentage: {completion_percentage:.2f}%")
 
-
+    is_pass = abs(completion_percentage - 100.0) < 1.0
     structure_score = compute_structure_score(ind.level)
     fitness = completion_percentage + 10 * is_pass + 5 * structure_score
 
     #新增：如果通关成功，则给予额外奖励
-    is_pass = abs(completion_percentage - 100.0) < 1.0
     completion_percentage = 10 * is_pass
     #########################################
 
@@ -112,13 +110,11 @@ def eval_mario(ind,visualize):
         print("PASS")
     else:
         print("FAIL TO PASS")
-
-    if not is_structure_valid(ind.level):
-        print("Warning: Skipping structurally invalid failed level")
-        ind.statsList = ['0'] * 6
-        ind.features = [0.0] * len(EliteMapConfig["Map"]["Features"])
-        is_pass = False  # 添加这句保证后续 return 不报错
-        return 0.0, is_pass
+        if not is_structure_valid(ind.level):
+            print("Warning: Skipping structurally invalid level")
+            ind.statsList = ['0'] * 6
+            ind.features = [0.0] * len(EliteMapConfig["Map"]["Features"])
+            return 0.0, is_pass
     #########################
 
     return fitness, is_pass
@@ -182,12 +178,11 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
     simulation=1
     while algorithm_instance.is_running():
         ind = algorithm_instance.generate_individual()
-
         ind.level=gan_generate(ind.param_vector,batch_size,nz,model_path)
-
         #新增：通关奖励，将fitness赋值给ind.fitness，is_pass赋值给is_pass#
         ind.fitness, is_pass = evaluate(ind, visualize)
 
+        #新增：通过统计
         if is_pass:
             pass_count += 1
 
