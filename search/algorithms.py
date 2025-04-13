@@ -493,6 +493,23 @@ class CMA_ME_Algorithm:
         return ind
 
     def return_evaluated_individual(self, ind):
+        #结构失败动态调整 mutation_power
+        if hasattr(ind, "failure_type") and ind.failure_type is not None:
+            for emitter in self.emitters:
+                if hasattr(emitter, "mutation_power"):
+                    old_power = emitter.mutation_power
+                    if ind.failure_type == "START_NO_GROUND":
+                        emitter.mutation_power *= 0.95  # 让它收敛一点
+                    elif ind.failure_type == "GAP_TOO_WIDE":
+                        emitter.mutation_power *= 0.98
+                    elif ind.failure_type == "WALL_TOO_HIGH":
+                        emitter.mutation_power *= 0.99
+
+                    #下限保护（不要太小）
+                    if emitter.mutation_power < 0.01:
+                        emitter.mutation_power = 0.01
+
+                    print(f"Emitter Adjust Failure: {ind.failure_type}, mutation_power {old_power:.4f} to {emitter.mutation_power:.4f}")
         ind.ID = self.individuals_evaluated
         self.individuals_evaluated += 1
         self.all_records.loc[ind.ID] = ["CMA-ME"]+[ind.param_vector]+ind.statsList+list(ind.features)

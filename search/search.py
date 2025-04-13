@@ -118,8 +118,8 @@ def eval_mario(ind,visualize):
         ind.blocked = True  #新增：设置阻止加入地图
         penalty_map = {
             "START_NO_GROUND": -10,
-            "GAP_TOO_WIDE": -5,
-            "WALL_TOO_HIGH": -3,
+            "GAP_TOO_WIDE": -10,
+            "WALL_TOO_HIGH": -10,
         }
         fitness += penalty_map.get(failure_reason, -2)  #结构失败惩罚信号
         ind.statsList = ['0'] * 6

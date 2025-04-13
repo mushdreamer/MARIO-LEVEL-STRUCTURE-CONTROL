@@ -154,9 +154,9 @@ class FeatureMap:
    def add_to_map(self, to_add):
       index = self.get_index(to_add)
       
-      #新增：结构错误地图直接拒绝加入地图（但 AI 会收到 fitness 惩罚）
-      if hasattr(to_add, "blocked") and to_add.blocked:
-         return False
+      if hasattr(to_add, "failure_type") and to_add.failure_type is not None:
+          print(f"[FeatureMap] Blocked structure failure: {to_add.failure_type}")
+          return False
 
       replaced_elite = False
       if index not in self.elite_map:
