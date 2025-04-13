@@ -1,19 +1,25 @@
-# MarioGAN-LSI
-This project implements the experiments for the paper *[Illuminating Mario Scenes in the Latent Space of a Generative Adversarial Network](https://arxiv.org/abs/2007.05674)*. Our project implements a method for Latent Space Illumination (LSI) which explores the latent space of generative adversarial network via modern quality diversity algorithms (MAP-Elites, ME (Iso+LineDD), CMA-ME). The project is derived from the *[MarioGAN](https://github.com/TheHedgeify/DagstuhlGAN)* project. We use a newer version of the *[Mario-AI-Framework](https://github.com/amidos2006/Mario-AI-Framework)* that allows for a richer definition of game tiles. 
+# MarioGAN-LEVEL-STRUCTURE-CONTROL
+In this work, we extend the CMA-ME framework with structure-aware evaluation and control. We propose a structure failure detection module that identifies and classifies unplayable levels into interpretable categories. We also design a structure scoring system that quantifies the plausibility of level layouts. These signals are embedded into the fitness function and the mutation dynamics of the search process. Additionally, structurally invalid samples are filtered from the elite map.
 
 # Training the GAN
-The GAN that generates Mario levels can be run by the following command in the GANTrain folder:
 
-```
-python3 GANTraining.py --cuda
-```
-
-However, training the GAN is unnecessary as we include a *[pretrained model](https://github.com/icaros-usc/MarioGAN-LSI/blob/master/GANTrain/samples/netG_epoch_4999_7684.pth)* in the repo.
+Training the GAN is unnecessary as we include a *[pretrained model](https://github.com/icaros-usc/MarioGAN-LSI/blob/master/GANTrain/samples/netG_epoch_4999_7684.pth)* in the repo.
 
 # Running LSI Experiments
+```
+-We suggest you to use Anaconda prompt(I use this to run the code on my computer)
+-Make sure you have python in your own environment(python --version)
+-Make sure you have Java in your own environment(java --version)
+-Make sure you have downloaded Mario-AI-Framework(https://github.com/amidos2006/Mario-AI-Framework.git / git clone https://github.com/amidos2006/Mario-AI-Framework.git)
+-Make sure you have downloaded torch(pip install torch torchvision torchaudio)
+-Make sure you have downloaded pyjnius(pip install pyjnius)
+```
 Experiments can be run with the command:
 ```
-python3 search/run_search.py -w 1 -c search/config/experiment/experiment.tml
+Make sure you are in the correct folder(For example, use command like "cd C:\GitHub\MarioGAN-LSI")
+python search/run_search.py -w 1 -c search/config/experiment/experiment.tml / python3 search/run_search.py -w 1 -c search/config/experiment/experiment.tml
 ```
+
+The first command(python search/run_search.py -w 1 -c search/config/experiment/experiment.tml) works for me, but if this doesn't work for you, try the second command(python3 search/run_search.py -w 1 -c search/config/experiment/experiment.tml)
 
 The w parameter specifies a worker id which specifies which trial to run from a given experiment file. This allows for parallel execution of all trials on a high-performance cluster.
