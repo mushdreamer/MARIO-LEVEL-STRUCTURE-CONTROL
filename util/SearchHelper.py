@@ -33,16 +33,13 @@ def detect_structure_failure(level, statsList, is_pass):
     MAX_JUMP_HEIGHT = 4
     MAX_JUMP_WIDTH = 5
 
-    # 1. WALL_TOO_HIGH（时间走完 + 未通关 → 代表被卡住）
     if not is_pass and int(statsList[5]) == 0:
         return False, "WALL_TOO_HIGH"
 
-    # 2. START_NO_GROUND
     start_ground = array[-2:, 0:3]
     if np.all(start_ground == 0):
         return False, "START_NO_GROUND"
 
-    # 3. GAP_TOO_WIDE（模拟跳跃中掉下）
     if not is_pass:
         for col in range(3, w - 1):
             player_y = next((row for row in range(h) if array[row][col] != 0), h)
@@ -63,12 +60,10 @@ def compute_structure_score(number_level):
     MAX_JUMP_HEIGHT = 4
     MAX_JUMP_WIDTH = 5
 
-    # 1. Start ground check
     start_ground = array[-2:, 0:3]
     if np.all(start_ground == 0):
         score -= 0.3
 
-    # 2. Wall height penalty
     for col in range(w):
         column = array[:, col]
         top = next((i for i, v in enumerate(column) if v != 0), h)
@@ -76,7 +71,6 @@ def compute_structure_score(number_level):
         if wall_height > MAX_JUMP_HEIGHT + 4:
             score -= 0.1
 
-    # 3. Gap penalty on bottom 3 rows
     for row in range(h - 3, h):
         gap_length = 0
         for col in range(w):

@@ -56,6 +56,7 @@ opt = parser.parse_args()
 batch_size =1
 nz = 32
 record_frequency=20
+penalty_strength = 10
 
 if not os.path.exists("logs"):
     os.mkdir("logs")
@@ -92,7 +93,6 @@ def eval_mario(ind,visualize):
         ind.features.append(feature_value)
     ind.features=tuple(ind.features)
 
-    #新增：定义通关成功与否
     completion_percentage=float(statsList[0]) * 100
     print(f"Completion Percentage: {completion_percentage:.2f}%")
 
@@ -100,32 +100,29 @@ def eval_mario(ind,visualize):
     structure_score = compute_structure_score(ind.level)
     fitness = completion_percentage + 10 * is_pass + 5 * structure_score
 
-    #新增：如果通关成功，则给予额外奖励
     completion_percentage = 10 * is_pass
-    #########################################
 
-    #新增：打印每轮是否通关
     if is_pass:
         print("PASS")
     else:
         print("FAIL TO PASS")
 
-    # 统一结构失败检测（静态 + 行为）
     valid, failure_reason = detect_structure_failure(ind.level, statsList, is_pass)
     if not valid:
         print(f"Warning: Skipping structurally invalid level due to: {failure_reason}")
         ind.failure_type = failure_reason
-        ind.blocked = True  #新增：设置阻止加入地图
+        ind.blocked = True 
+        global penalty_strength
         penalty_map = {
-            "START_NO_GROUND": -10,
-            "GAP_TOO_WIDE": -10,
-            "WALL_TOO_HIGH": -10,
+            "START_NO_GROUND": -penalty_strength,
+            "GAP_TOO_WIDE": -penalty_strength,
+            "WALL_TOO_HIGH": -penalty_strength,
         }
-        fitness += penalty_map.get(failure_reason, -2)  #结构失败惩罚信号
+        fitness += penalty_map.get(failure_reason, -2)
         ind.statsList = ['0'] * 6
         ind.features = [0.0] * len(EliteMapConfig["Map"]["Features"])
         return fitness, is_pass
-    #########################
+
 
     return fitness, is_pass
 
@@ -137,19 +134,18 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
     feature_ranges=[]
     column_names=['emitterName','latentVector', 'completionPercentage','jumpActionsPerformed','killsTotal','livesLeft','coinsCollected','remainingTime (20-timeSpent)']
     bc_names=[]
-    #新增：通关统计
     pass_count = 0
-    ##############
-    #新增：100次通关统计
     pass_rate_history = []
-    ######################
-    # 新增：结构错误统计器
     failure_counter = {
         "START_NO_GROUND": 0,
         "GAP_TOO_WIDE": 0,
         "WALL_TOO_HIGH": 0
         }
     failure_history = []
+    structure_scores = []
+    structure_score_history = []
+    elite_coverage_history = []
+    qd_score_history = []
     for bc in elite_map_config["Map"]["Features"]:
         feature_ranges.append((bc["low"],bc["high"]))
         column_names.append(bc["name"])
@@ -191,24 +187,55 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
         print("Start Running RANDOM")
         algorithm_instance=RandomGenerator(num_to_evaluate,feature_map,trial_name,column_names,bc_names)
     
-    #新增：通关统计
+    penalty_strength = 10
+    last_failure_sum = None
+    penalty_log = []
     simulation=1
     while algorithm_instance.is_running():
         ind = algorithm_instance.generate_individual()
         ind.level=gan_generate(ind.param_vector,batch_size,nz,model_path)
-        #新增：通关奖励，将fitness赋值给ind.fitness，is_pass赋值给is_pass#
         ind.fitness, is_pass = evaluate(ind, visualize)
 
-        #新增：通过统计
+        try:
+            from util.SearchHelper import compute_structure_score
+            score = compute_structure_score(ind.level)
+        except:
+            score = 0
+        structure_scores.append(score)
+
+        ind.fitness, is_pass = evaluate(ind, visualize)
+
         if is_pass:
             pass_count += 1
 
-        # 统计结构错误
         if hasattr(ind, "failure_type") and ind.failure_type in failure_counter:
             failure_counter[ind.failure_type] += 1
 
-        # 每 100 次记录一次
         if simulation % 100 == 0:
+            cur_failure_sum = (
+                failure_counter["START_NO_GROUND"] +
+                failure_counter["GAP_TOO_WIDE"] +
+                failure_counter["WALL_TOO_HIGH"]
+            )
+
+            if last_failure_sum is not None:
+                delta = cur_failure_sum - last_failure_sum
+
+                if delta < -10:
+                    penalty_strength = max(penalty_strength - 5, 10)
+                elif delta < -2:
+                    penalty_strength += 5
+                elif delta <= 2:
+                    penalty_strength += 10
+                else:
+                    penalty_strength += 20
+
+                penalty_strength = min(penalty_strength, 300)
+                print(f"[Penalty Update] Failure={delta}, New Penalty={penalty_strength}")
+
+            last_failure_sum = cur_failure_sum
+            penalty_log.append([simulation, penalty_strength])
+
             pass_rate = pass_count / simulation * 100
             pass_rate_history.append((simulation, pass_rate))
             print(f"[Info] At simulation {simulation}: Pass rate = {pass_rate:.2f}%")
@@ -224,27 +251,39 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
             for k in failure_counter:
                 failure_counter[k] = 0
 
+            avg_score = sum(structure_scores) / len(structure_scores)
+            structure_score_history.append([simulation, avg_score])
+            structure_scores.clear()
+
+            elite_map = algorithm_instance.feature_map.elite_map
+            total_bins = 1
+            for res in algorithm_instance.feature_map.resolutions:
+                total_bins *= res
+            coverage = len(elite_map) / total_bins * 100
+            elite_coverage_history.append([simulation, coverage])
+
+            qd_score = sum([e.fitness for e in algorithm_instance.feature_map.elite_map.values()]) / 100
+            qd_score_history.append([simulation, qd_score])
+
+
         algorithm_instance.return_evaluated_individual(ind)
         print(f"{simulation}/{num_to_evaluate} simulations finished")
         simulation += 1
 
     algorithm_instance.all_records.to_csv("logs/"+trial_name+"_all_simulations.csv")
 
-    #新增：保存百次成功率并制图
     csv_path = f"logs/{trial_name}_pass_rate.csv"
     with open(csv_path, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Simulation", "Pass Rate (%)"])
         writer.writerows(pass_rate_history)
 
-    # 保存结构失败 CSV（不嵌套绘图！）
     failure_csv_path = f"logs/{trial_name}_failure_stats.csv"
     with open(failure_csv_path, mode='w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(["Simulation", "START_NO_GROUND", "GAP_TOO_WIDE", "WALL_TOO_HIGH"])
         writer.writerows(failure_history)
 
-    #成功绘图
     try:
         df = pd.DataFrame(pass_rate_history, columns=["Simulation", "Pass Rate (%)"])
         plt.figure(figsize=(10,6))
@@ -256,11 +295,10 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
         plt.tight_layout()
         plot_path = f"logs/{trial_name}_pass_rate_plot.png"
         plt.savefig(plot_path)
-        print(f"Pass rate plot saved to: {plot_path}")
+        print(f"Saved: Pass rate plot")
     except Exception as e:
         print("Failed to generate pass rate plot:", e)
 
-    #结构错误趋势图
     try:
         df_fail = pd.DataFrame(failure_history, columns=["Simulation", "START_NO_GROUND", "GAP_TOO_WIDE", "WALL_TOO_HIGH"])
         plt.figure(figsize=(10,6))
@@ -275,14 +313,67 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
         plt.tight_layout()
         failure_plot_path = f"logs/{trial_name}_failure_trend.png"
         plt.savefig(failure_plot_path)
-        print(f"Failure trend plot saved to: {failure_plot_path}")
+        print(f"Saved: failure trend plot")
     except Exception as e:
         print("Failed to generate failure trend plot:", e)
+
+    try:    
+        df_penalty = pd.DataFrame(penalty_log, columns=["Simulation", "Penalty Strength"])
+        df_penalty.to_csv(f"logs/{trial_name}_penalty_log.csv", index=False)
+
+        plt.figure(figsize=(8, 5))
+        plt.plot(df_penalty["Simulation"], df_penalty["Penalty Strength"], marker='o')
+        plt.title("Penalty Strength Over Time")
+        plt.xlabel("Simulation")
+        plt.ylabel("Penalty")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"logs/{trial_name}_penalty_strength_plot.png")
+        print("Saved: penalty strength plot")
+
+        df_score = pd.DataFrame(structure_score_history, columns=["Simulation", "Avg Structure Score"])
+        df_score.to_csv(f"logs/{trial_name}_structure_score.csv", index=False)
+        plt.figure(figsize=(8, 5))
+        plt.plot(df_score["Simulation"], df_score["Avg Structure Score"], marker='o')
+        plt.title("Structure Score Over Time")
+        plt.xlabel("Simulation")
+        plt.ylabel("Avg Structure Score")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"logs/{trial_name}_structure_score_plot.png")
+        print(f"Saved: structure score plot")
+
+        df_coverage = pd.DataFrame(elite_coverage_history, columns=["Simulation", "Elite Map Coverage"])
+        df_coverage.to_csv(f"logs/{trial_name}_map_coverage.csv", index=False)
+        plt.figure(figsize=(8, 5))
+        plt.plot(df_coverage["Simulation"], df_coverage["Elite Map Coverage"], marker='s')
+        plt.title("Elite Map Coverage Over Time")
+        plt.xlabel("Simulation")
+        plt.ylabel("Coverage (%)")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"logs/{trial_name}_map_coverage_plot.png")
+        print(f"Saved: map coverage plot")
+
+        df_qd = pd.DataFrame(qd_score_history, columns=["Simulation", "QD Score"])
+        df_qd.to_csv(f"logs/{trial_name}_qd_score.csv", index=False)
+        plt.figure(figsize=(8, 5))
+        plt.plot(df_qd["Simulation"], df_qd["QD Score"], marker='^')
+        plt.title("QD Score Over Time")
+        plt.xlabel("Simulation")
+        plt.ylabel("QD Score")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"logs/{trial_name}_qd_score_plot.png")
+        print(f"Saved: QD score plot")
+
+    except Exception as e:
+        print("Failed to generate quality stats plots:", e)
+
 
     plt.show()
 
     print(f"\nSummary: {pass_count} passed / {num_to_evaluate} total ({(pass_count / num_to_evaluate) * 100:.2f}%)")
-    ################################################################################################################
 
 """
 if __name__ == '__main__':
