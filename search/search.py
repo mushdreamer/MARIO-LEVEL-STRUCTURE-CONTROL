@@ -222,7 +222,7 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
                 delta = cur_failure_sum - last_failure_sum
 
                 if delta < -10:
-                    penalty_strength = max(penalty_strength - 5, 10)
+                    penalty_strength = max(penalty_strength - 10, 10)
                 elif delta < -2:
                     penalty_strength += 5
                 elif delta <= 2:
@@ -230,7 +230,8 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
                 else:
                     penalty_strength += 20
 
-                penalty_strength = min(penalty_strength, 300)
+                if penalty_strength > 500:
+                    penalty_strength *= 0.95
                 print(f"[Penalty Update] Failure={delta}, New Penalty={penalty_strength}")
 
             last_failure_sum = cur_failure_sum
