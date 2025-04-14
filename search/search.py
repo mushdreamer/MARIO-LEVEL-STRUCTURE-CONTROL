@@ -118,6 +118,7 @@ def eval_mario(ind,visualize):
             "GAP_TOO_WIDE": -penalty_strength,
             "WALL_TOO_HIGH": -penalty_strength,
         }
+        #When a failure is found: 2.I give it a lower fitness score
         fitness += penalty_map.get(failure_reason, -2)
         ind.statsList = ['0'] * 6
         ind.features = [0.0] * len(EliteMapConfig["Map"]["Features"])
@@ -241,6 +242,7 @@ def run_trial(num_to_evaluate,algorithm_name,algorithm_config,elite_map_config,t
             pass_rate_history.append((simulation, pass_rate))
             print(f"[Info] At simulation {simulation}: Pass rate = {pass_rate:.2f}%")
 
+            #At first, I wasn¡¯t sure if the levels were any good. So I built a visualization system that records things every 100 runs: pass rate, structure failures, behavior coverage, and more.
             failure_history.append([
                 simulation,
                 failure_counter["START_NO_GROUND"],

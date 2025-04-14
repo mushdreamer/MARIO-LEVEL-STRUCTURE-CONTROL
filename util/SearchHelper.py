@@ -33,6 +33,7 @@ def detect_structure_failure(level, statsList, is_pass):
     MAX_JUMP_HEIGHT = 4
     MAX_JUMP_WIDTH = 5
 
+    #So I made a structure failure detection system to find these cases.
     if not is_pass and int(statsList[5]) == 0:
         return False, "WALL_TOO_HIGH"
 
@@ -145,6 +146,7 @@ class FeatureMap:
    def get_index(self, cur):
       return tuple(self.get_feature_index(i, f) for i, f in enumerate(cur.features))
 
+  #When a failure is found:1.I block the level from entering the elite map
    def add_to_map(self, to_add):
       index = self.get_index(to_add)
       

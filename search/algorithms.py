@@ -491,7 +491,7 @@ class CMA_ME_Algorithm:
 
         self.individuals_disbatched += 1
         return ind
-
+    #When a failure is found: And I reduce the mutation strength for the search algorithm
     def return_evaluated_individual(self, ind):
         if hasattr(ind, "failure_type") and ind.failure_type is not None:
             for emitter in self.emitters:
