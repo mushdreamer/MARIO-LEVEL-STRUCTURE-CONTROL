@@ -19,8 +19,10 @@ Experiments can be run with the command:
 Make sure you are in the correct folder(For example, use command like "cd C:\GitHub\MarioGAN-LSI")
 python search/run_search.py -w 1 -c search/config/experiment/experiment.tml / python3 search/run_search.py -w 1 -c search/config/experiment/experiment.tml
 ```
+```
 Besure to use worker ID 1!!! If you use different worker ID, it may lead you to different trial with different algorithm(eg.CMA-ES, Random etc.). Note that we are talking about CMA-ME in this project, so just use the command I provide
 (python search/run_search.py -w 1 -c search/config/experiment/experiment.tml / python3 search/run_search.py -w 1 -c search/config/experiment/experiment.tml)
+```
 The first command(python search/run_search.py -w 1 -c search/config/experiment/experiment.tml) works for me, but if this doesn't work for you, try the second command(python3 search/run_search.py -w 1 -c search/config/experiment/experiment.tml)
 
 The w parameter specifies a worker id which specifies which trial to run from a given experiment file. This allows for parallel execution of all trials on a high-performance cluster.
