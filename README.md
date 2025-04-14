@@ -1,3 +1,4 @@
+Video Link
 # MarioGAN-LEVEL-STRUCTURE-CONTROL
 In this work, we extend the CMA-ME framework with structure-aware evaluation and control. We propose a structure failure detection module that identifies and classifies unplayable levels into interpretable categories. We also design a structure scoring system that quantifies the plausibility of level layouts. These signals are embedded into the fitness function and the mutation dynamics of the search process. Additionally, structurally invalid samples are filtered from the elite map.
 
